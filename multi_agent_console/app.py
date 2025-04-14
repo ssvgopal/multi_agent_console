@@ -1,5 +1,9 @@
 """
 MultiAgentConsole - A terminal-based multi-agent system powered by Google's ADK.
+
+Author: Sai Sunkara
+Copyright 2025 Sai Sunkara
+License: MIT
 """
 
 import json

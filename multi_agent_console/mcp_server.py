@@ -6,6 +6,10 @@ This module provides a simple server for agent communication:
 - Agent registration
 - Message routing
 - Plugin integration
+
+Author: Sai Sunkara
+Copyright 2025 Sai Sunkara
+License: MIT
 """
 
 import json
@@ -18,11 +22,11 @@ import uuid
 
 class MCPMessage:
     """Represents a message in the MCP system."""
-    
-    def __init__(self, sender: str, receiver: str, message_type: str, content: Any, 
+
+    def __init__(self, sender: str, receiver: str, message_type: str, content: Any,
                 message_id: Optional[str] = None, reply_to: Optional[str] = None):
         """Initialize a new MCP message.
-        
+
         Args:
             sender: ID of the sending agent
             receiver: ID of the receiving agent (or 'broadcast')
@@ -38,10 +42,10 @@ class MCPMessage:
         self.message_id = message_id or str(uuid.uuid4())
         self.reply_to = reply_to
         self.timestamp = time.time()
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert the message to a dictionary.
-        
+
         Returns:
             Dictionary representation of the message
         """
@@ -54,14 +58,14 @@ class MCPMessage:
             "reply_to": self.reply_to,
             "timestamp": self.timestamp
         }
-    
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'MCPMessage':
         """Create a message from a dictionary.
-        
+
         Args:
             data: Dictionary representation of the message
-            
+
         Returns:
             MCPMessage instance
         """
@@ -77,10 +81,10 @@ class MCPMessage:
 
 class MCPAgent:
     """Represents an agent in the MCP system."""
-    
+
     def __init__(self, agent_id: str, name: str, capabilities: List[str] = None):
         """Initialize a new MCP agent.
-        
+
         Args:
             agent_id: Unique agent ID
             name: Agent name
@@ -91,10 +95,10 @@ class MCPAgent:
         self.capabilities = capabilities or []
         self.is_active = True
         self.last_seen = time.time()
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert the agent to a dictionary.
-        
+
         Returns:
             Dictionary representation of the agent
         """
@@ -109,7 +113,7 @@ class MCPAgent:
 
 class MCPServer:
     """Simple MCP server for agent communication."""
-    
+
     def __init__(self):
         """Initialize the MCP server."""
         self.agents: Dict[str, MCPAgent] = {}
@@ -117,15 +121,15 @@ class MCPServer:
         self.message_history: List[MCPMessage] = []
         self.max_history = 1000
         self.lock = threading.RLock()
-        
+
         logging.info("MCP Server initialized")
-    
+
     def register_agent(self, agent: MCPAgent) -> bool:
         """Register an agent with the server.
-        
+
         Args:
             agent: Agent to register
-            
+
         Returns:
             True if successful, False otherwise
         """
@@ -133,10 +137,10 @@ class MCPServer:
             if agent.agent_id in self.agents:
                 logging.warning(f"Agent {agent.agent_id} already registered")
                 return False
-            
+
             self.agents[agent.agent_id] = agent
             logging.info(f"Agent registered: {agent.name} ({agent.agent_id})")
-            
+
             # Broadcast agent registration
             self.send_message(MCPMessage(
                 sender="system",
@@ -144,15 +148,15 @@ class MCPServer:
                 message_type="agent_registered",
                 content=agent.to_dict()
             ))
-            
+
             return True
-    
+
     def unregister_agent(self, agent_id: str) -> bool:
         """Unregister an agent from the server.
-        
+
         Args:
             agent_id: ID of the agent to unregister
-            
+
         Returns:
             True if successful, False otherwise
         """
@@ -160,10 +164,10 @@ class MCPServer:
             if agent_id not in self.agents:
                 logging.warning(f"Agent {agent_id} not registered")
                 return False
-            
+
             agent = self.agents.pop(agent_id)
             logging.info(f"Agent unregistered: {agent.name} ({agent.agent_id})")
-            
+
             # Broadcast agent unregistration
             self.send_message(MCPMessage(
                 sender="system",
@@ -171,12 +175,12 @@ class MCPServer:
                 message_type="agent_unregistered",
                 content={"agent_id": agent_id, "name": agent.name}
             ))
-            
+
             return True
-    
+
     def register_handler(self, message_type: str, handler: Callable) -> None:
         """Register a message handler.
-        
+
         Args:
             message_type: Type of message to handle
             handler: Handler function
@@ -184,16 +188,16 @@ class MCPServer:
         with self.lock:
             if message_type not in self.message_handlers:
                 self.message_handlers[message_type] = []
-            
+
             self.message_handlers[message_type].append(handler)
             logging.debug(f"Handler registered for message type: {message_type}")
-    
+
     def send_message(self, message: MCPMessage) -> bool:
         """Send a message through the server.
-        
+
         Args:
             message: Message to send
-            
+
         Returns:
             True if successful, False otherwise
         """
@@ -202,35 +206,35 @@ class MCPServer:
             self.message_history.append(message)
             if len(self.message_history) > self.max_history:
                 self.message_history.pop(0)
-            
+
             # Handle broadcast messages
             if message.receiver == "broadcast":
                 for agent_id in self.agents:
                     if agent_id != message.sender:
                         self._deliver_message(message, agent_id)
                 return True
-            
+
             # Handle direct messages
             if message.receiver in self.agents:
                 return self._deliver_message(message, message.receiver)
             else:
                 logging.warning(f"Unknown receiver: {message.receiver}")
                 return False
-    
+
     def _deliver_message(self, message: MCPMessage, receiver_id: str) -> bool:
         """Deliver a message to a specific receiver.
-        
+
         Args:
             message: Message to deliver
             receiver_id: ID of the receiver
-            
+
         Returns:
             True if successful, False otherwise
         """
         # Update agent's last seen time if they're the sender
         if message.sender in self.agents:
             self.agents[message.sender].last_seen = time.time()
-        
+
         # Call handlers for this message type
         if message.message_type in self.message_handlers:
             for handler in self.message_handlers[message.message_type]:
@@ -238,34 +242,34 @@ class MCPServer:
                     handler(message)
                 except Exception as e:
                     logging.error(f"Error in message handler: {e}")
-        
+
         return True
-    
+
     def get_agent(self, agent_id: str) -> Optional[MCPAgent]:
         """Get an agent by ID.
-        
+
         Args:
             agent_id: Agent ID
-            
+
         Returns:
             MCPAgent instance or None if not found
         """
         return self.agents.get(agent_id)
-    
+
     def list_agents(self) -> List[MCPAgent]:
         """List all registered agents.
-        
+
         Returns:
             List of registered agents
         """
         return list(self.agents.values())
-    
+
     def get_recent_messages(self, count: int = 10) -> List[MCPMessage]:
         """Get recent messages.
-        
+
         Args:
             count: Maximum number of messages to return
-            
+
         Returns:
             List of recent messages
         """
@@ -275,10 +279,10 @@ class MCPServer:
 
 class MCPPlugin:
     """Base class for MCP plugins."""
-    
+
     def __init__(self, plugin_id: str, name: str, description: str = ""):
         """Initialize a new MCP plugin.
-        
+
         Args:
             plugin_id: Unique plugin ID
             name: Plugin name
@@ -289,13 +293,13 @@ class MCPPlugin:
         self.description = description
         self.is_enabled = False
         self.server = None
-    
+
     def register(self, server: MCPServer) -> bool:
         """Register the plugin with an MCP server.
-        
+
         Args:
             server: MCP server
-            
+
         Returns:
             True if successful, False otherwise
         """
@@ -303,10 +307,10 @@ class MCPPlugin:
         self.is_enabled = True
         logging.info(f"Plugin registered: {self.name} ({self.plugin_id})")
         return True
-    
+
     def unregister(self) -> bool:
         """Unregister the plugin from its MCP server.
-        
+
         Returns:
             True if successful, False otherwise
         """
@@ -316,18 +320,18 @@ class MCPPlugin:
             logging.info(f"Plugin unregistered: {self.name} ({self.plugin_id})")
             return True
         return False
-    
+
     def on_message(self, message: MCPMessage) -> None:
         """Handle an incoming message.
-        
+
         Args:
             message: Incoming message
         """
         pass
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert the plugin to a dictionary.
-        
+
         Returns:
             Dictionary representation of the plugin
         """
@@ -341,37 +345,37 @@ class MCPPlugin:
 
 class MCPPluginManager:
     """Manages MCP plugins."""
-    
+
     def __init__(self, server: MCPServer):
         """Initialize the plugin manager.
-        
+
         Args:
             server: MCP server
         """
         self.server = server
         self.plugins: Dict[str, MCPPlugin] = {}
-        
+
         logging.info("MCP Plugin Manager initialized")
-    
+
     def register_plugin(self, plugin: MCPPlugin) -> bool:
         """Register a plugin.
-        
+
         Args:
             plugin: Plugin to register
-            
+
         Returns:
             True if successful, False otherwise
         """
         if plugin.plugin_id in self.plugins:
             logging.warning(f"Plugin {plugin.plugin_id} already registered")
             return False
-        
+
         if plugin.register(self.server):
             self.plugins[plugin.plugin_id] = plugin
-            
+
             # Register message handler
             self.server.register_handler("broadcast", plugin.on_message)
-            
+
             # Broadcast plugin registration
             self.server.send_message(MCPMessage(
                 sender="system",
@@ -379,28 +383,28 @@ class MCPPluginManager:
                 message_type="plugin_registered",
                 content=plugin.to_dict()
             ))
-            
+
             return True
-        
+
         return False
-    
+
     def unregister_plugin(self, plugin_id: str) -> bool:
         """Unregister a plugin.
-        
+
         Args:
             plugin_id: ID of the plugin to unregister
-            
+
         Returns:
             True if successful, False otherwise
         """
         if plugin_id not in self.plugins:
             logging.warning(f"Plugin {plugin_id} not registered")
             return False
-        
+
         plugin = self.plugins[plugin_id]
         if plugin.unregister():
             del self.plugins[plugin_id]
-            
+
             # Broadcast plugin unregistration
             self.server.send_message(MCPMessage(
                 sender="system",
@@ -408,25 +412,25 @@ class MCPPluginManager:
                 message_type="plugin_unregistered",
                 content={"plugin_id": plugin_id, "name": plugin.name}
             ))
-            
+
             return True
-        
+
         return False
-    
+
     def get_plugin(self, plugin_id: str) -> Optional[MCPPlugin]:
         """Get a plugin by ID.
-        
+
         Args:
             plugin_id: Plugin ID
-            
+
         Returns:
             MCPPlugin instance or None if not found
         """
         return self.plugins.get(plugin_id)
-    
+
     def list_plugins(self) -> List[MCPPlugin]:
         """List all registered plugins.
-        
+
         Returns:
             List of registered plugins
         """
