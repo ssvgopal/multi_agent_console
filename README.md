@@ -2,7 +2,7 @@
 
 A powerful terminal-based multi-agent system powered by Google's Agent Development Kit (ADK).
 
-![MultiAgentConsole](assets/console_screenshot.png)
+![MultiAgentConsole](assets/multi_agent_console_logo.png)
 
 ## Overview
 
