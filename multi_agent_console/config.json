@@ -1,10 +1,11 @@
 {
+  "api_key": "AIzaSyDQpJRDvmOxKPF-4XQyIFpVU3GjCN_uJeM",
   "model_identifier": "gemini-2.0-pro",
   "active_agents": [
-    "coordinator", 
-    "code_assistant", 
-    "research_assistant", 
-    "system_assistant", 
+    "coordinator",
+    "code_assistant",
+    "research_assistant",
+    "system_assistant",
     "data_assistant"
   ],
   "system_prompts": {

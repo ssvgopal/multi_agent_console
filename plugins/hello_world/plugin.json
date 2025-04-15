@@ -1,0 +1,12 @@
+{
+  "id": "hello_world",
+  "name": "Hello World",
+  "description": "A simple example plugin for MultiAgentConsole",
+  "version": "1.0.0",
+  "author": "Sai Sunkara",
+  "tags": ["example", "demo"],
+  "requirements": [],
+  "repository_url": null,
+  "homepage_url": null,
+  "icon_url": null
+}

@@ -1,0 +1,11 @@
+{
+  "enabled": false,
+  "sync_url": null,
+  "sync_interval": 300,
+  "sync_types": [
+    "conversations",
+    "memory",
+    "workflows"
+  ],
+  "last_sync_time": null
+}

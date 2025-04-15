@@ -192,6 +192,27 @@ class MCPServer:
             self.message_handlers[message_type].append(handler)
             logging.debug(f"Handler registered for message type: {message_type}")
 
+    def unregister_handler(self, message_type: str, handler: Callable) -> bool:
+        """Unregister a message handler.
+
+        Args:
+            message_type: Type of message to handle
+            handler: Handler function
+
+        Returns:
+            True if successful, False otherwise
+        """
+        with self.lock:
+            if message_type not in self.message_handlers:
+                return False
+
+            if handler not in self.message_handlers[message_type]:
+                return False
+
+            self.message_handlers[message_type].remove(handler)
+            logging.debug(f"Handler unregistered for message type: {message_type}")
+            return True
+
     def send_message(self, message: MCPMessage) -> bool:
         """Send a message through the server.
 

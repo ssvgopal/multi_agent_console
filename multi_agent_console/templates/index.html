@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MultiAgentConsole</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.6"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.26.0/dist/cytoscape.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .chat-container {
+            height: calc(100vh - 12rem);
+        }
+        .graph-container {
+            height: calc(100vh - 12rem);
+        }
+        #graph-view {
+            width: 100%;
+            height: 100%;
+            background-color: #f8fafc;
+            border-radius: 0.5rem;
+        }
+        .message {
+            margin-bottom: 1rem;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            max-width: 80%;
+        }
+        .user-message {
+            background-color: #e2e8f0;
+            margin-left: auto;
+        }
+        .assistant-message {
+            background-color: #dbeafe;
+            margin-right: auto;
+        }
+        .thinking {
+            opacity: 0.7;
+            font-style: italic;
+        }
+        .system-message {
+            max-width: 100%;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .system-message.error {
+            color: #b91c1c;
+        }
+        .system-message.success {
+            color: #15803d;
+        }
+        .system-message.warning {
+            color: #b45309;
+        }
+        .tab-pane {
+            display: none;
+        }
+        .tab-pane.active {
+            display: block;
+        }
+        .tool-card {
+            background-color: white;
+            transition: all 0.3s ease;
+        }
+        .tool-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .tool-form {
+            display: none;
+        }
+        .tool-form.active {
+            display: block;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <header class="bg-blue-600 text-white p-4">
+        <div class="container mx-auto flex justify-between items-center">
+            <h1 class="text-2xl font-bold">MultiAgentConsole</h1>
+            <div class="flex space-x-4">
+                <select id="agent-selector" class="bg-blue-700 text-white px-3 py-1 rounded">
+                    <option value="coordinator">Coordinator</option>
+                    <!-- Other agents will be loaded dynamically -->
+                </select>
+                <button id="settings-button" class="bg-blue-700 hover:bg-blue-800 px-3 py-1 rounded">
+                    Settings
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="container mx-auto p-4">
+        <!-- Tab Navigation -->
+        <div class="mb-4 border-b border-gray-200">
+            <ul class="flex flex-wrap -mb-px text-sm font-medium text-center" id="tab-navigation">
+                <li class="mr-2">
+                    <a href="#" class="inline-block p-4 border-b-2 border-blue-600 rounded-t-lg active" id="chat-tab" data-tab="chat-panel">Chat</a>
+                </li>
+                <li class="mr-2">
+                    <a href="#" class="inline-block p-4 border-b-2 border-transparent rounded-t-lg hover:text-gray-600 hover:border-gray-300" id="tools-tab" data-tab="tools-panel">Tools</a>
+                </li>
+                <li class="mr-2">
+                    <a href="#" class="inline-block p-4 border-b-2 border-transparent rounded-t-lg hover:text-gray-600 hover:border-gray-300" id="graph-tab" data-tab="graph-panel">Thought Graph</a>
+                </li>
+                <li class="mr-2">
+                    <a href="#" class="inline-block p-4 border-b-2 border-transparent rounded-t-lg hover:text-gray-600 hover:border-gray-300" id="multimodal-tab" data-tab="multimodal-panel">Multi-Modal</a>
+                </li>
+                <li class="mr-2">
+                    <a href="#" class="inline-block p-4 border-b-2 border-transparent rounded-t-lg hover:text-gray-600 hover:border-gray-300" id="workflow-tab" data-tab="workflow-panel">Workflows</a>
+                </li>
+                <li class="mr-2">
+                    <a href="#" class="inline-block p-4 border-b-2 border-transparent rounded-t-lg hover:text-gray-600 hover:border-gray-300" id="offline-tab" data-tab="offline-panel">Offline</a>
+                </li>
+                <li class="mr-2">
+                    <a href="#" class="inline-block p-4 border-b-2 border-transparent rounded-t-lg hover:text-gray-600 hover:border-gray-300" id="marketplace-tab" data-tab="marketplace-panel">Marketplace</a>
+                </li>
+                <li class="mr-2">
+                    <a href="#" class="inline-block p-4 border-b-2 border-transparent rounded-t-lg hover:text-gray-600 hover:border-gray-300" id="plugins-tab" data-tab="plugins-panel">Plugins</a>
+                </li>
+                <li class="mr-2">
+                    <a href="#" class="inline-block p-4 border-b-2 border-transparent rounded-t-lg hover:text-gray-600 hover:border-gray-300" id="ws-test-tab" data-tab="ws-test-panel">WebSocket Test</a>
+                </li>
+            </ul>
+        </div>
+
+        <!-- Tab Content -->
+        <div class="tab-content">
+            <!-- Chat Panel -->
+            <div id="chat-panel" class="tab-pane active">
+                <div class="flex flex-col md:flex-row gap-4">
+                    <!-- Chat interface -->
+                    <div class="w-full bg-white rounded-lg shadow p-4">
+                        <div class="flex justify-between items-center mb-4">
+                            <h2 class="text-xl font-semibold">Chat</h2>
+                            <div>
+                                <button id="new-chat-button" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm">
+                                    New Chat
+                                </button>
+                                <button id="save-chat-button" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm">
+                                    Save
+                                </button>
+                            </div>
+                        </div>
+
+                        <div id="chat-messages" class="chat-container overflow-y-auto mb-4 p-2 flex flex-col">
+                            <!-- Messages will be added here dynamically -->
+                            <div class="message assistant-message">
+                                <p>Welcome to MultiAgentConsole! How can I help you today?</p>
+                            </div>
+                        </div>
+
+                        <div class="flex">
+                            <input
+                                id="chat-input"
+                                type="text"
+                                placeholder="Type your message here..."
+                                class="flex-grow border border-gray-300 rounded-l px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            >
+                            <button
+                                id="send-button"
+                                class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-r"
+                            >
+                                Send
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tools Panel -->
+            <div id="tools-panel" class="tab-pane hidden">
+                <div class="bg-white rounded-lg shadow p-4">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-semibold">Tools</h2>
+                        <div>
+                            <select id="tool-category-selector" class="border border-gray-300 rounded px-2 py-1 text-sm">
+                                <option value="all">All Tools</option>
+                                <option value="git">Git Tools</option>
+                                <option value="database">Database Tools</option>
+                                <option value="api">API Tools</option>
+                                <option value="media">Media Tools</option>
+                                <option value="voice">Voice Tools</option>
+                                <option value="document">Document Tools</option>
+                                <option value="system">System Tools</option>
+                                <option value="mcp">MCP Tools</option>
+                                <option value="graph">Graph Tools</option>
+                                <option value="a2a">A2A Tools</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div id="tool-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <!-- Tool cards will be added here dynamically -->
+                        <div class="tool-card p-4 border rounded-lg hover:shadow-md transition-shadow">
+                            <h3 class="font-semibold text-lg">Loading tools...</h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Graph Panel -->
+            <div id="graph-panel" class="tab-pane hidden">
+                <div class="bg-white rounded-lg shadow p-4">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-semibold">Thought Graph</h2>
+                        <div>
+                            <select id="graph-plugin-selector" class="border border-gray-300 rounded px-2 py-1 text-sm">
+                                <option value="">Default Analyzer</option>
+                                <!-- Graph plugins will be loaded dynamically -->
+                            </select>
+                            <button id="analyze-button" class="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded text-sm">
+                                Analyze
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="graph-container">
+                        <div id="graph-view"></div>
+                    </div>
+
+                    <div id="graph-insights" class="mt-4 p-3 bg-gray-50 rounded text-sm">
+                        <h3 class="font-semibold mb-2">Insights</h3>
+                        <div id="insights-content">
+                            <p class="text-gray-500 italic">Analyze your query to see insights</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Multi-Modal Panel -->
+            <div id="multimodal-panel" class="tab-pane hidden">
+                <div class="bg-white rounded-lg shadow p-4">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-semibold">Multi-Modal Tools</h2>
+                        <div>
+                            <select id="multimodal-category-selector" class="border border-gray-300 rounded px-2 py-1 text-sm">
+                                <option value="all">All Multi-Modal</option>
+                                <option value="image">Image Processing</option>
+                                <option value="audio">Audio Processing</option>
+                                <option value="chart">Chart Generation</option>
+                                <option value="document">Document Processing</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div id="multimodal-content" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- Multi-modal content will be loaded dynamically -->
+                        <div class="p-4 border rounded-lg">
+                            <h3 class="font-semibold text-lg mb-2">Loading multi-modal tools...</h3>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- Workflow Panel -->
+            <div id="workflow-panel" class="tab-pane hidden">
+                <div class="bg-white rounded-lg shadow p-4">
+                    <h2 class="text-xl font-semibold mb-4">Workflows</h2>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- Templates Section -->
+                        <div>
+                            <div class="flex justify-between items-center mb-3">
+                                <h3 class="text-lg font-medium">Templates</h3>
+                                <button id="refresh-templates-btn" class="text-sm text-blue-600 hover:text-blue-800">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                    </svg>
+                                    Refresh
+                                </button>
+                            </div>
+                            <div id="workflow-template-list" class="border rounded-lg p-4 bg-gray-50 h-96 overflow-y-auto">
+                                <p class="text-center py-4">Loading templates...</p>
+                            </div>
+                        </div>
+
+                        <!-- Active Workflows Section -->
+                        <div>
+                            <div class="flex justify-between items-center mb-3">
+                                <h3 class="text-lg font-medium">Active Workflows</h3>
+                                <button id="refresh-workflows-btn" class="text-sm text-blue-600 hover:text-blue-800">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                    </svg>
+                                    Refresh
+                                </button>
+                            </div>
+                            <div id="active-workflow-list" class="border rounded-lg p-4 bg-gray-50 h-96 overflow-y-auto">
+                                <p class="text-center py-4">Loading workflows...</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Workflow Content -->
+                    <div id="workflow-content" class="mt-4">
+                        <!-- Workflow details will be loaded here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Plugins Panel -->
+            <div id="plugins-panel" class="tab-pane hidden">
+                <div class="bg-white rounded-lg shadow p-4">
+                    <h2 class="text-xl font-semibold mb-4">Plugins</h2>
+
+                    <div class="mb-4">
+                        <div class="flex">
+                            <input type="text" id="plugin-search-input" class="flex-grow border border-gray-300 rounded-l px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Search for plugins...">
+                            <button id="plugin-search-btn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-r">
+                                Search
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- Available Plugins Section -->
+                        <div>
+                            <div class="flex justify-between items-center mb-3">
+                                <h3 class="text-lg font-medium">Available Plugins</h3>
+                                <button id="refresh-available-plugins-btn" class="text-sm text-blue-600 hover:text-blue-800">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                    </svg>
+                                    Refresh
+                                </button>
+                            </div>
+                            <div id="available-plugins-list" class="border rounded-lg p-4 bg-gray-50 h-96 overflow-y-auto">
+                                <p class="text-center py-4">Loading available plugins...</p>
+                            </div>
+                        </div>
+
+                        <!-- Installed Plugins Section -->
+                        <div>
+                            <div class="flex justify-between items-center mb-3">
+                                <h3 class="text-lg font-medium">Installed Plugins</h3>
+                                <button id="refresh-installed-plugins-btn" class="text-sm text-blue-600 hover:text-blue-800">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                    </svg>
+                                    Refresh
+                                </button>
+                            </div>
+                            <div id="installed-plugins-list" class="border rounded-lg p-4 bg-gray-50 h-96 overflow-y-auto">
+                                <p class="text-center py-4">Loading installed plugins...</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Plugin Details -->
+                    <div id="plugin-details" class="mt-4 hidden">
+                        <!-- Plugin details will be loaded here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Marketplace Panel -->
+            <div id="marketplace-panel" class="tab-pane hidden">
+                <div class="bg-white rounded-lg shadow p-4">
+                    <h2 class="text-xl font-semibold mb-4">Agent Marketplace</h2>
+
+                    <div class="mb-4">
+                        <div class="flex">
+                            <input type="text" id="agent-search-input" class="flex-grow border border-gray-300 rounded-l px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Search for agents...">
+                            <button id="agent-search-btn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-r">
+                                Search
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- Available Agents Section -->
+                        <div>
+                            <div class="flex justify-between items-center mb-3">
+                                <h3 class="text-lg font-medium">Available Agents</h3>
+                                <button id="refresh-available-btn" class="text-sm text-blue-600 hover:text-blue-800">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                    </svg>
+                                    Refresh
+                                </button>
+                            </div>
+                            <div id="available-agents-list" class="border rounded-lg p-4 bg-gray-50 h-96 overflow-y-auto">
+                                <p class="text-center py-4">Loading available agents...</p>
+                            </div>
+                        </div>
+
+                        <!-- Installed Agents Section -->
+                        <div>
+                            <div class="flex justify-between items-center mb-3">
+                                <h3 class="text-lg font-medium">Installed Agents</h3>
+                                <button id="refresh-installed-btn" class="text-sm text-blue-600 hover:text-blue-800">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                    </svg>
+                                    Refresh
+                                </button>
+                            </div>
+                            <div id="installed-agents-list" class="border rounded-lg p-4 bg-gray-50 h-96 overflow-y-auto">
+                                <p class="text-center py-4">Loading installed agents...</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Agent Details -->
+                    <div id="agent-details" class="mt-4 hidden">
+                        <!-- Agent details will be loaded here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Offline Panel -->
+            <div id="offline-panel" class="tab-pane hidden">
+                <div class="bg-white rounded-lg shadow p-4">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-semibold">Offline Mode</h2>
+                        <div class="flex items-center">
+                            <span class="mr-2">Status: <span id="offline-status-text" class="text-gray-600">Disabled</span></span>
+                            <label class="inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="offline-mode-toggle" class="sr-only peer">
+                                <div class="relative w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- Cache Section -->
+                        <div>
+                            <div class="flex justify-between items-center mb-3">
+                                <h3 class="text-lg font-medium">Cache</h3>
+                                <div>
+                                    <button id="refresh-cache-btn" class="text-sm text-blue-600 hover:text-blue-800 mr-2">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                        </svg>
+                                        Refresh
+                                    </button>
+                                    <button id="clear-cache-btn" class="text-sm text-red-600 hover:text-red-800">
+                                        Clear Cache
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="cache-stats" class="border rounded-lg p-4 bg-gray-50 h-96 overflow-y-auto">
+                                <p class="text-center py-4">Loading cache statistics...</p>
+                            </div>
+                        </div>
+
+                        <!-- Knowledge Base Section -->
+                        <div>
+                            <div class="flex justify-between items-center mb-3">
+                                <h3 class="text-lg font-medium">Knowledge Base</h3>
+                                <button id="refresh-kb-btn" class="text-sm text-blue-600 hover:text-blue-800">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                    </svg>
+                                    Refresh
+                                </button>
+                            </div>
+                            <div class="mb-3">
+                                <div class="flex">
+                                    <input type="text" id="kb-search-input" class="flex-grow border border-gray-300 rounded-l px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Search knowledge base...">
+                                    <button id="kb-search-btn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-r">
+                                        Search
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="knowledge-base-container" class="border rounded-lg p-4 bg-gray-50 h-80 overflow-y-auto">
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 h-full">
+                                    <div id="knowledge-base-topics" class="border-r pr-3 overflow-y-auto">
+                                        <p class="text-center py-4">Loading topics...</p>
+                                    </div>
+                                    <div id="knowledge-base-content" class="pl-3 overflow-y-auto">
+                                        <p class="text-center py-4">Select a topic to view entries</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-4 p-4 bg-blue-50 rounded-lg">
+                        <h3 class="font-medium mb-2">Add to Knowledge Base</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label class="block text-gray-700 mb-1 text-sm">Topic</label>
+                                <input type="text" id="kb-add-topic" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            </div>
+                            <div class="md:col-span-2">
+                                <label class="block text-gray-700 mb-1 text-sm">Content</label>
+                                <textarea id="kb-add-content" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" rows="3"></textarea>
+                            </div>
+                        </div>
+                        <div class="mt-2 flex justify-end">
+                            <button id="kb-add-btn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded" onclick="addToKnowledgeBase(document.getElementById('kb-add-topic').value, document.getElementById('kb-add-content').value)">
+                                Add to Knowledge Base
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- WebSocket Test Panel -->
+            <div id="ws-test-panel" class="tab-pane hidden">
+                <div class="bg-white rounded-lg shadow p-4">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-semibold">WebSocket Test Client</h2>
+                        <div>
+                            <span class="mr-2">Status: <span id="ws-status" class="text-red-600 font-medium">Disconnected</span></span>
+                            <button id="ws-connect-btn" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm">
+                                Connect
+                            </button>
+                            <button id="ws-disconnect-btn" class="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm" disabled>
+                                Disconnect
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                        <div class="col-span-2">
+                            <label class="block text-gray-700 mb-2">Message</label>
+                            <textarea id="ws-message-input" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" rows="3" disabled></textarea>
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 mb-2">Message Type</label>
+                            <select id="ws-message-type" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 mb-2" disabled>
+                                <option value="chat">Chat Message</option>
+                                <option value="graph">Graph Request</option>
+                                <option value="tool">Tool Request</option>
+                                <option value="custom">Custom JSON</option>
+                            </select>
+                            <button id="ws-send-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded text-sm" disabled>
+                                Send Message
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="mb-2 flex justify-between items-center">
+                        <h3 class="font-semibold">Message Log</h3>
+                        <button id="ws-clear-log" class="text-sm text-gray-600 hover:text-gray-800">
+                            Clear Log
+                        </button>
+                    </div>
+
+                    <div id="ws-message-log" class="border border-gray-300 rounded p-3 bg-gray-50 h-64 overflow-y-auto">
+                        <!-- Message log will be populated dynamically -->
+                        <div class="mb-2">
+                            <span class="text-xs text-gray-500">00:00:00</span>
+                            <pre class="text-gray-500 italic text-sm whitespace-pre-wrap">WebSocket test client initialized</pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+        <div class="bg-white rounded-lg p-6 w-full max-w-md">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-semibold">Settings</h2>
+                <button id="close-settings" class="text-gray-500 hover:text-gray-700">
+                    &times;
+                </button>
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-gray-700 mb-2">API Key</label>
+                <input id="api-key-input" type="password" class="w-full border border-gray-300 rounded px-3 py-2">
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-gray-700 mb-2">Model</label>
+                <select id="model-selector" class="w-full border border-gray-300 rounded px-3 py-2">
+                    <option value="gemini-2.0-pro">Gemini 2.0 Pro</option>
+                    <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+                    <option value="gemini-1.0-pro">Gemini 1.0 Pro</option>
+                </select>
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-gray-700 mb-2">Theme</label>
+                <select id="theme-selector" class="w-full border border-gray-300 rounded px-3 py-2">
+                    <option value="light">Light</option>
+                    <option value="dark">Dark</option>
+                    <option value="system">System</option>
+                </select>
+            </div>
+
+            <div class="flex justify-end">
+                <button id="save-settings" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">
+                    Save
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/main.js"></script>
+    <script src="/static/js/graph.js"></script>
+    <script src="/static/js/tools.js"></script>
+    <script src="/static/js/multimodal.js"></script>
+    <script src="/static/js/workflow.js"></script>
+    <script src="/static/js/offline.js"></script>
+    <script src="/static/js/marketplace.js"></script>
+    <script src="/static/js/plugins.js"></script>
+    <script src="/static/js/websocket-test.js"></script>
+</body>
+</html>
