@@ -1,0 +1,15 @@
+{
+  "default": {
+    "permission_level": 1,
+    "allowed_paths": [
+      "data/"
+    ],
+    "allowed_domains": [
+      "api.openweathermap.org",
+      "newsapi.org"
+    ],
+    "allowed_commands": [
+      "python"
+    ]
+  }
+}

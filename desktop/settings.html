@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MultiAgentConsole Settings</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+        }
+        h1 {
+            margin-top: 0;
+            color: #2c3e50;
+            font-size: 24px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+        .section {
+            margin-bottom: 20px;
+        }
+        .section-title {
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #2c3e50;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+        input[type="text"],
+        input[type="number"],
+        select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+        }
+        .checkbox-group input[type="checkbox"] {
+            margin-right: 8px;
+        }
+        .button-group {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 20px;
+        }
+        button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        button.primary {
+            background-color: #3498db;
+            color: white;
+            margin-left: 10px;
+        }
+        button.secondary {
+            background-color: #e0e0e0;
+            color: #333;
+        }
+        button:hover {
+            opacity: 0.9;
+        }
+        .dark-mode {
+            background-color: #222;
+            color: #eee;
+        }
+        .dark-mode .container {
+            background-color: #333;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+        }
+        .dark-mode h1,
+        .dark-mode .section-title {
+            color: #eee;
+            border-color: #444;
+        }
+        .dark-mode input[type="text"],
+        .dark-mode input[type="number"],
+        .dark-mode select {
+            background-color: #444;
+            border-color: #555;
+            color: #eee;
+        }
+        .dark-mode button.secondary {
+            background-color: #555;
+            color: #eee;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Settings</h1>
+        
+        <div class="section">
+            <div class="section-title">Server Settings</div>
+            <div class="form-group">
+                <label for="serverPort">Server Port</label>
+                <input type="number" id="serverPort" min="1024" max="65535">
+            </div>
+            <div class="form-group checkbox-group">
+                <input type="checkbox" id="startServerOnLaunch">
+                <label for="startServerOnLaunch">Start server on application launch</label>
+            </div>
+        </div>
+        
+        <div class="section">
+            <div class="section-title">Application Settings</div>
+            <div class="form-group checkbox-group">
+                <input type="checkbox" id="minimizeToTray">
+                <label for="minimizeToTray">Minimize to tray when closing</label>
+            </div>
+            <div class="form-group">
+                <label for="theme">Theme</label>
+                <select id="theme">
+                    <option value="system">System Default</option>
+                    <option value="light">Light</option>
+                    <option value="dark">Dark</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="fontSize">Font Size</label>
+                <select id="fontSize">
+                    <option value="small">Small</option>
+                    <option value="medium">Medium</option>
+                    <option value="large">Large</option>
+                </select>
+            </div>
+            <div class="form-group checkbox-group">
+                <input type="checkbox" id="notifications">
+                <label for="notifications">Enable notifications</label>
+            </div>
+            <div class="form-group checkbox-group">
+                <input type="checkbox" id="autoUpdate">
+                <label for="autoUpdate">Automatically check for updates</label>
+            </div>
+        </div>
+        
+        <div class="section">
+            <div class="section-title">Sync Settings</div>
+            <div class="form-group checkbox-group">
+                <input type="checkbox" id="syncEnabled">
+                <label for="syncEnabled">Enable cloud synchronization</label>
+            </div>
+            <div class="form-group">
+                <label for="syncInterval">Sync Interval (minutes)</label>
+                <input type="number" id="syncInterval" min="5" max="1440">
+            </div>
+        </div>
+        
+        <div class="section">
+            <div class="section-title">Advanced Settings</div>
+            <div class="form-group checkbox-group">
+                <input type="checkbox" id="offlineMode">
+                <label for="offlineMode">Offline mode</label>
+            </div>
+            <div class="form-group checkbox-group">
+                <input type="checkbox" id="developerMode">
+                <label for="developerMode">Developer mode</label>
+            </div>
+        </div>
+        
+        <div class="button-group">
+            <button class="secondary" id="cancelBtn">Cancel</button>
+            <button class="primary" id="saveBtn">Save</button>
+        </div>
+    </div>
+
+    <script>
+        // Load settings when the page loads
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const settings = await window.api.getSettings();
+                
+                // Populate form fields with settings
+                document.getElementById('serverPort').value = settings.serverPort;
+                document.getElementById('startServerOnLaunch').checked = settings.startServerOnLaunch;
+                document.getElementById('minimizeToTray').checked = settings.minimizeToTray;
+                document.getElementById('theme').value = settings.theme;
+                document.getElementById('fontSize').value = settings.fontSize;
+                document.getElementById('notifications').checked = settings.notifications;
+                document.getElementById('autoUpdate').checked = settings.autoUpdate;
+                document.getElementById('syncEnabled').checked = settings.syncEnabled;
+                document.getElementById('syncInterval').value = settings.syncInterval;
+                document.getElementById('offlineMode').checked = settings.offlineMode;
+                document.getElementById('developerMode').checked = settings.developerMode;
+                
+                // Apply theme
+                if (settings.theme === 'dark' || 
+                    (settings.theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                    document.body.classList.add('dark-mode');
+                }
+            } catch (error) {
+                console.error('Failed to load settings:', error);
+                alert('Failed to load settings: ' + error.message);
+            }
+        });
+        
+        // Save settings
+        document.getElementById('saveBtn').addEventListener('click', async () => {
+            try {
+                const settings = {
+                    serverPort: parseInt(document.getElementById('serverPort').value, 10),
+                    startServerOnLaunch: document.getElementById('startServerOnLaunch').checked,
+                    minimizeToTray: document.getElementById('minimizeToTray').checked,
+                    theme: document.getElementById('theme').value,
+                    fontSize: document.getElementById('fontSize').value,
+                    notifications: document.getElementById('notifications').checked,
+                    autoUpdate: document.getElementById('autoUpdate').checked,
+                    syncEnabled: document.getElementById('syncEnabled').checked,
+                    syncInterval: parseInt(document.getElementById('syncInterval').value, 10),
+                    offlineMode: document.getElementById('offlineMode').checked,
+                    developerMode: document.getElementById('developerMode').checked
+                };
+                
+                await window.api.saveSettings(settings);
+                window.close();
+            } catch (error) {
+                console.error('Failed to save settings:', error);
+                alert('Failed to save settings: ' + error.message);
+            }
+        });
+        
+        // Cancel button
+        document.getElementById('cancelBtn').addEventListener('click', () => {
+            window.close();
+        });
+    </script>
+</body>
+</html>

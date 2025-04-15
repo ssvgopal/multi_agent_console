@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MultiAgentConsole - Server Offline</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        .container {
+            text-align: center;
+            padding: 2rem;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            max-width: 500px;
+        }
+        h1 {
+            margin-top: 0;
+            color: #2c3e50;
+        }
+        p {
+            margin-bottom: 1.5rem;
+            line-height: 1.5;
+        }
+        .icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            color: #e74c3c;
+        }
+        .button {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            background-color: #3498db;
+            color: white;
+            border-radius: 4px;
+            text-decoration: none;
+            font-weight: 500;
+            margin: 0.5rem;
+            cursor: pointer;
+            border: none;
+        }
+        .button:hover {
+            background-color: #2980b9;
+        }
+        .button.secondary {
+            background-color: #95a5a6;
+        }
+        .button.secondary:hover {
+            background-color: #7f8c8d;
+        }
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border-left-color: #3498db;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            margin-right: 10px;
+            vertical-align: middle;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .status {
+            margin-top: 1rem;
+            padding: 1rem;
+            border-radius: 4px;
+            background-color: #f8f9fa;
+            display: none;
+        }
+        .dark-mode {
+            background-color: #222;
+            color: #eee;
+        }
+        .dark-mode .container {
+            background-color: #333;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+        }
+        .dark-mode h1 {
+            color: #eee;
+        }
+        .dark-mode .status {
+            background-color: #444;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="icon">⚠️</div>
+        <h1>Server Offline</h1>
+        <p>The MultiAgentConsole server is currently not running. You need to start the server to use the application.</p>
+        
+        <div>
+            <button id="startServerBtn" class="button">Start Server</button>
+            <button id="settingsBtn" class="button secondary">Settings</button>
+        </div>
+        
+        <div id="status" class="status">
+            <div id="spinner" class="spinner"></div>
+            <span id="statusText">Starting server...</span>
+        </div>
+    </div>
+
+    <script>
+        // Check if we're in dark mode
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const settings = await window.api.getSettings();
+                
+                // Apply theme
+                if (settings.theme === 'dark' || 
+                    (settings.theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                    document.body.classList.add('dark-mode');
+                }
+            } catch (error) {
+                console.error('Failed to load settings:', error);
+            }
+        });
+        
+        // Start server button
+        document.getElementById('startServerBtn').addEventListener('click', async () => {
+            const statusDiv = document.getElementById('status');
+            const statusText = document.getElementById('statusText');
+            
+            statusDiv.style.display = 'block';
+            statusText.textContent = 'Starting server...';
+            
+            try {
+                // Send message to main process to start server
+                await window.api.startServer();
+                
+                // Check server status every second
+                const checkInterval = setInterval(async () => {
+                    const isRunning = await window.api.checkServerStatus();
+                    
+                    if (isRunning) {
+                        clearInterval(checkInterval);
+                        statusText.textContent = 'Server started! Redirecting...';
+                        
+                        // Redirect to server after a short delay
+                        setTimeout(() => {
+                            window.location.href = `http://localhost:${await window.api.getServerPort()}`;
+                        }, 1000);
+                    }
+                }, 1000);
+                
+                // Timeout after 30 seconds
+                setTimeout(() => {
+                    clearInterval(checkInterval);
+                    statusText.textContent = 'Server start timed out. Please check settings and try again.';
+                    document.getElementById('spinner').style.display = 'none';
+                }, 30000);
+            } catch (error) {
+                statusText.textContent = `Error starting server: ${error.message}`;
+                document.getElementById('spinner').style.display = 'none';
+            }
+        });
+        
+        // Settings button
+        document.getElementById('settingsBtn').addEventListener('click', () => {
+            window.api.openSettings();
+        });
+    </script>
+</body>
+</html>

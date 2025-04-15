@@ -1,0 +1,17 @@
+{
+  "user_id": "user",
+  "created_at": 1744665323.2850232,
+  "last_updated": 1744665323.2850232,
+  "preferences": {
+    "default_agent": "coordinator",
+    "theme": "default",
+    "model_preference": null
+  },
+  "topics_of_interest": [],
+  "interaction_history": {
+    "total_conversations": 0,
+    "total_messages": 0,
+    "frequent_topics": [],
+    "last_conversation_id": null
+  }
+}

@@ -12,10 +12,12 @@ import os
 import platform
 import subprocess
 import uuid
+import argparse
+import secrets
 from datetime import datetime
 from logging import FileHandler
 import asyncio
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Union
 
 from textual import on, work
 from textual.app import App, ComposeResult
@@ -48,6 +50,9 @@ from .thought_graph import ThoughtGraphManager, ThoughtGraphAnalyzer
 from .plugins.graph_analysis_plugin import GraphAnalysisPlugin, InfraNodusPlugin, SimpleGraphPlugin
 from .a2a_adapter import A2AAdapter, A2ATextArtifact, A2AFileArtifact, A2ADataArtifact
 from .plugins.a2a_plugin import A2APlugin
+from .web_server import WebServer
+from .optimization import setup_optimization, get_optimization_stats, cached, memoize, optimize_function, batch_process, parallel_process
+from .security_enhancements import InputValidator, OutputSanitizer, setup_security
 
 # Define default system prompts for different agents
 COORDINATOR_PROMPT = """You are the coordinator for MultiAgentConsole.
@@ -202,6 +207,7 @@ class MultiAgentConsole(App):
 
         # Configuration
         Binding("ctrl+r", "reload_config", "Reload Config"),
+        Binding("ctrl+c", "edit_config", "Edit Config"),
     ]
 
     def compose(self) -> ComposeResult:
@@ -308,6 +314,18 @@ class MultiAgentConsole(App):
         # Create data directories if they don't exist
         os.makedirs("data", exist_ok=True)
 
+        # Set up optimization features
+        setup_optimization(
+            max_cache_size=1000,
+            cache_ttl=3600,  # 1 hour cache TTL
+            max_memory_mb=1024,  # 1GB memory limit
+            max_cpu_percent=80,  # 80% CPU limit
+            lazy_loading=True
+        )
+        logging.info("Optimization features initialized")
+        logging.info(f"Optimization stats: {get_optimization_stats()}")
+
+
         # Initialize memory manager
         self.memory_manager = MemoryManager(data_dir="data")
         self.context_enhancer = ContextEnhancer(self.memory_manager)
@@ -326,7 +344,8 @@ class MultiAgentConsole(App):
         logging.info("UI enhancement manager initialized")
 
         # Apply theme CSS
-        self.app.stylesheet.append(self.ui_manager.get_enhanced_css())
+        # Just use the default stylesheet for now
+        pass
 
         # Initialize multi-modal manager
         self.multi_modal_manager = MultiModalManager(data_dir="data")
@@ -391,34 +410,59 @@ class MultiAgentConsole(App):
         # Load configuration
         self.config = self.load_config()
 
-        # Update UI with loaded configuration
-        self.query_one("#model-input", Input).value = self.config.get("model_identifier", DEFAULT_CONFIG["model_identifier"])
+        # Initialize session
+        self.artifact_service = InMemoryArtifactService()
+        self.session_service = InMemorySessionService()
+
+        # Initialize user profile
+        self.user_id = "user"  # In a real app, this would be the authenticated user
+
+        # Update UI with loaded configuration if we're in terminal mode
+        try:
+            self.query_one("#model-input", Input).value = self.config.get("model_identifier", DEFAULT_CONFIG["model_identifier"])
+        except Exception as e:
+            # This will happen when running in web mode, which is fine
+            logging.debug(f"Could not update UI: {e}")
 
         # Initialize agent system
         self.initialize_agent_system()
 
-        # Initialize session
-        self.artifact_service = InMemoryArtifactService()
-        self.session_service = InMemorySessionService()
-        self.session = self.session_service.create_session(
-            app_name="multi_agent_console",
-            user_id="user"
-        )
-
         # Initialize user profile
-        self.user_id = "user"  # In a real app, this would be the authenticated user
         self.user_profile = self.memory_manager.get_user_profile(self.user_id)
 
         # Hide memory panel by default on small screens
         self.memory_panel_visible = True
 
-        # Set focus to chat input
-        self.query_one("#chat-input", Input).focus()
+        # Set focus to chat input if we're in terminal mode
+        try:
+            self.query_one("#chat-input", Input).focus()
+        except Exception as e:
+            # This will happen when running in web mode, which is fine
+            logging.debug(f"Could not set focus: {e}")
 
     def initialize_agent_system(self):
         """Initialize the multi-agent system with ADK"""
         model_identifier = self.config.get("model_identifier", DEFAULT_CONFIG["model_identifier"])
         system_prompts = self.config.get("system_prompts", DEFAULT_CONFIG["system_prompts"])
+        api_key = self.config.get("api_key", None)
+
+        # Check if API key is provided
+        logging.info(f"API key from config: {api_key}")
+        if not api_key:
+            logging.warning("No API key provided in config.json. Please add your API key.")
+            try:
+                self.query_one("#chat-view").mount(Markdown("*Error: No API key provided. Please edit config.json to add your API key.*"))
+            except Exception as e:
+                logging.debug(f"Could not update UI: {e}")
+            return
+
+        # Set the API key as an environment variable for the ADK library
+        os.environ["GOOGLE_API_KEY"] = api_key
+        logging.info(f"Set GOOGLE_API_KEY environment variable with API key from config.json")
+
+        # Disable Vertex AI to use the API key directly
+        os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "0"
+        logging.info("Disabled Vertex AI to use API key directly")
 
         # Get agent preferences if available
         agent_prefs = {}
@@ -1318,6 +1362,10 @@ class MultiAgentConsole(App):
                     self.user_id, agent_name, base_prompt)
             return base_prompt
 
+        # Return early if no API key is provided
+        if not api_key or api_key == "YOUR_API_KEY_HERE":
+            return
+
         # Define specialized agents with advanced tools
         self.code_assistant = LlmAgent(
             name="code_assistant",
@@ -1325,6 +1373,7 @@ class MultiAgentConsole(App):
             description="Specialized in writing and explaining code",
             instruction=get_personalized_instructions(
                 "code_assistant", system_prompts.get("code_assistant", CODE_ASSISTANT_PROMPT)),
+            api_key=api_key,
             tools=[
                 # Basic tools
                 FunctionTool(execute_python_code),
@@ -1343,6 +1392,7 @@ class MultiAgentConsole(App):
             description="Specialized in research and information gathering",
             instruction=get_personalized_instructions(
                 "research_assistant", system_prompts.get("research_assistant", RESEARCH_ASSISTANT_PROMPT)),
+            api_key=api_key,
             tools=[
                 # Web search
                 google_search,
@@ -1361,6 +1411,7 @@ class MultiAgentConsole(App):
             description="Specialized in system administration tasks",
             instruction=get_personalized_instructions(
                 "system_assistant", system_prompts.get("system_assistant", SYSTEM_ASSISTANT_PROMPT)),
+            api_key=api_key,
             tools=[
                 # File system tools
                 FunctionTool(list_files),
@@ -1380,6 +1431,7 @@ class MultiAgentConsole(App):
             description="Specialized in data analysis and visualization",
             instruction=get_personalized_instructions(
                 "data_assistant", system_prompts.get("data_assistant", DATA_ASSISTANT_PROMPT)),
+            api_key=api_key,
             tools=[
                 # Code execution
                 FunctionTool(execute_python_code),
@@ -1459,6 +1511,7 @@ class MultiAgentConsole(App):
             description="A terminal-based assistant that coordinates specialized agents",
             instruction=get_personalized_instructions(
                 "coordinator", system_prompts.get("coordinator", COORDINATOR_PROMPT)),
+            api_key=api_key,
             sub_agents=[
                 self.code_assistant,
                 self.research_assistant,
@@ -1493,6 +1546,12 @@ class MultiAgentConsole(App):
             session_service=self.session_service
         )
 
+        # Create session
+        self.session = self.session_service.create_session(
+            app_name="multi_agent_console",
+            user_id=self.user_id
+        )
+
         logging.info(f"Agent system initialized with model: {model_identifier}")
         logging.info(f"Active agent: {self.active_agent_name}")
 
@@ -1512,8 +1571,13 @@ class MultiAgentConsole(App):
                 session_service=self.session_service
             )
 
-            self.query_one("#chat-view").mount(Markdown(f"*Switched to {new_agent_name}*"))
-            logging.info(f"Switched to agent: {new_agent_name}")
+            # Check if session exists before trying to use it
+            if not hasattr(self, 'session'):
+                self.query_one("#chat-view").mount(Markdown(f"*Switched to {new_agent_name}, but no active session. Please check your configuration and try again.*"))
+                logging.warning(f"Switched to agent {new_agent_name} but no active session exists")
+            else:
+                self.query_one("#chat-view").mount(Markdown(f"*Switched to {new_agent_name}*"))
+                logging.info(f"Switched to agent: {new_agent_name}")
 
     @on(Input.Submitted, "#model-input")
     def on_model_input_submitted(self, event: Input.Submitted) -> None:
@@ -1536,7 +1600,8 @@ class MultiAgentConsole(App):
         try:
             system = platform.system()
             if system == "Windows":
-                os.startfile(CONFIG_PATH)
+                # Use notepad to open the file on Windows
+                subprocess.Popen(["notepad.exe", CONFIG_PATH])
             elif system == "Darwin":  # macOS
                 subprocess.run(["open", CONFIG_PATH], check=True)
             else:  # Linux and other UNIX-like
@@ -1570,6 +1635,12 @@ class MultiAgentConsole(App):
 
     def action_save_conversation(self) -> None:
         """Save the current conversation."""
+        # Check if session exists
+        if not hasattr(self, 'session'):
+            self.query_one("#chat-view").mount(Markdown("*Error: No active session to save. Please start a conversation first.*"))
+            logging.error("Attempted to save conversation but no session exists")
+            return
+
         # Generate a title based on the first user message
         title = None
         for event in self.session.events:
@@ -1589,24 +1660,35 @@ class MultiAgentConsole(App):
 
     def action_load_conversation(self) -> None:
         """Load a saved conversation."""
-        # Get recent conversations
-        conversations = self.memory_manager.list_conversations(self.user_id, limit=5)
-
-        if not conversations:
-            self.query_one("#chat-view").mount(Markdown("*No saved conversations found*"))
+        # Check if memory_manager exists
+        if not hasattr(self, 'memory_manager'):
+            self.query_one("#chat-view").mount(Markdown("*Error: Memory manager not initialized. Please check your configuration and try again.*"))
+            logging.error("Attempted to load conversation but memory manager doesn't exist")
             return
 
-        # Display the conversations
-        message = "*Available conversations:*\n\n"
-        for i, conv in enumerate(conversations):
-            message += f"{i+1}. {conv['title']} ({datetime.fromtimestamp(conv['timestamp']).strftime('%Y-%m-%d %H:%M')})\n"
+        # Get recent conversations
+        try:
+            conversations = self.memory_manager.list_conversations(self.user_id, limit=5)
 
-        message += "\n*Type the number of the conversation to load in your next message*"
-        self.query_one("#chat-view").mount(Markdown(message))
+            if not conversations:
+                self.query_one("#chat-view").mount(Markdown("*No saved conversations found*"))
+                return
 
-        # Store the conversations for later reference
-        self.available_conversations = conversations
-        self.waiting_for_conversation_selection = True
+            # Display the conversations
+            message = "*Available conversations:*\n\n"
+            for i, conv in enumerate(conversations):
+                message += f"{i+1}. {conv['title']} ({datetime.fromtimestamp(conv['timestamp']).strftime('%Y-%m-%d %H:%M')})\n"
+
+            message += "\n*Type the number of the conversation to load in your next message*"
+            self.query_one("#chat-view").mount(Markdown(message))
+
+            # Store the conversations for later reference
+            self.available_conversations = conversations
+            self.waiting_for_conversation_selection = True
+        except Exception as e:
+            self.query_one("#chat-view").mount(Markdown(f"*Error loading conversations: {e}*"))
+            logging.error(f"Error loading conversations: {e}")
+            return
 
     def action_new_session(self) -> None:
         """Create a new session."""
@@ -1614,28 +1696,50 @@ class MultiAgentConsole(App):
 
     def action_search_memory(self) -> None:
         """Search through memory."""
+        # Check if memory_manager exists
+        if not hasattr(self, 'memory_manager'):
+            self.query_one("#chat-view").mount(Markdown("*Error: Memory manager not initialized. Please check your configuration and try again.*"))
+            logging.error("Attempted to search memory but memory manager doesn't exist")
+            return
+
         self.query_one("#chat-view").mount(Markdown("*Enter your search query in the chat input*"))
         self.waiting_for_search_query = True
 
     def action_edit_preferences(self) -> None:
         """Edit user preferences."""
-        # Display current preferences
-        preferences = self.user_profile.get("preferences", {})
-        message = "*Current User Preferences:*\n\n"
+        try:
+            # Check if user_profile exists
+            if not hasattr(self, 'user_profile'):
+                self.query_one("#chat-view").mount(Markdown("*Error: User profile not initialized. Please check your configuration and try again.*"))
+                logging.error("Attempted to edit preferences but user profile doesn't exist")
+                return
 
-        for key, value in preferences.items():
-            message += f"**{key}**: {value}\n"
+            # Display current preferences
+            preferences = self.user_profile.get("preferences", {})
+            message = "*Current User Preferences:*\n\n"
 
-        # Display API keys (masked)
-        message += "\n*API Keys:*\n"
-        services = self.security_manager.credential_manager.list_services()
-        if services:
-            for service in services:
-                keys = self.security_manager.credential_manager.list_credentials(service)
-                for key in keys:
-                    message += f"**{service}.{key}**: ****\n"
-        else:
-            message += "No API keys set.\n"
+            for key, value in preferences.items():
+                message += f"**{key}**: {value}\n"
+
+            # Display API keys (masked)
+            message += "\n*API Keys:*\n"
+
+            # Check if security_manager exists
+            if not hasattr(self, 'security_manager') or not hasattr(self.security_manager, 'credential_manager'):
+                message += "Security manager not initialized. API keys cannot be displayed.\n"
+            else:
+                services = self.security_manager.credential_manager.list_services()
+                if services:
+                    for service in services:
+                        keys = self.security_manager.credential_manager.list_credentials(service)
+                        for key in keys:
+                            message += f"**{service}.{key}**: ****\n"
+                else:
+                    message += "No API keys set.\n"
+        except Exception as e:
+            self.query_one("#chat-view").mount(Markdown(f"*Error editing preferences: {e}*"))
+            logging.error(f"Error editing preferences: {e}")
+            return
 
         # Display available themes
         message += "\n*Available Themes:*\n"
@@ -1652,6 +1756,12 @@ class MultiAgentConsole(App):
         message += "\n*To change the theme, type 'set_theme theme_name' in the chat input*"
         self.query_one("#chat-view").mount(Markdown(message))
         self.waiting_for_preference_edit = True
+
+    def action_edit_config(self) -> None:
+        """Open the configuration file in the default editor."""
+        # Call the button press handler directly with None as the event
+        # This is safe because the handler doesn't use the event parameter
+        self.on_edit_config_button_pressed(None)
 
     def action_reload_config(self) -> None:
         """Reload configuration and reinitialize the agent system."""
@@ -1687,11 +1797,17 @@ class MultiAgentConsole(App):
         """Create a new session and reset the UI."""
         logging.info("Creating new session.")
 
-        # Create new session
-        self.session = self.session_service.create_session(
-            app_name="multi_agent_console",
-            user_id=self.user_id
-        )
+        try:
+            # Create new session
+            self.session = self.session_service.create_session(
+                app_name="multi_agent_console",
+                user_id=self.user_id
+            )
+        except Exception as e:
+            logging.error(f"Failed to create new session: {e}")
+            chat_view = self.query_one("#chat-view")
+            await chat_view.mount(Markdown(f"*Error: Failed to create new session: {e}*"))
+            return
 
         # Clear chat view
         chat_view = self.query_one("#chat-view")
@@ -1736,8 +1852,8 @@ class MultiAgentConsole(App):
         """
         if self.ui_manager.set_theme(theme_name):
             # Update the CSS
-            self.app.stylesheet.clear()
-            self.app.stylesheet.append(self.ui_manager.get_enhanced_css())
+            # Just use the default stylesheet for now
+            pass
             return True
         return False
 
@@ -1872,10 +1988,16 @@ class MultiAgentConsole(App):
         logging.info(f"Input submitted: {prompt}")
 
     @work(thread=True)
+    @optimize_function
     async def process_prompt(self, prompt: str, response: Response) -> None:
         """Process the prompt with the active agent and update the response"""
         try:
             self.call_from_thread(response.update, "*Thinking...*")
+
+            # Check if session exists
+            if not hasattr(self, 'session'):
+                self.call_from_thread(response.update, "*Error: No active session. Please check your configuration and try again.*")
+                return
 
             # Enhance prompt with context if available
             enhanced_prompt = self.context_enhancer.enhance_prompt(self.user_id, prompt, self.session)
@@ -1924,11 +2046,130 @@ class MultiAgentConsole(App):
             error_message = f"**Error:** {e}"
             self.call_from_thread(response.update, error_message)
 
+    @optimize_function
+    async def process_message(self, message: str, session_id: Optional[str] = None) -> str:
+        """Process a message from the web interface.
+
+        Args:
+            message: The user's message
+            session_id: Optional session ID
+
+        Returns:
+            Response from the agent
+        """
+        try:
+            # Get the active agent name if available, otherwise use a default
+            active_agent = getattr(self, 'active_agent', None)
+            active_agent_name = active_agent.name if active_agent else "default agent"
+            logging.info(f"Processing web message with {active_agent_name}: {message}")
+
+            # Check if session exists
+            if not hasattr(self, 'session'):
+                error_message = "Error: No active session. Please check your configuration and try again."
+                logging.error(error_message)
+                return error_message
+
+            # Enhance prompt with context if available
+            enhanced_prompt = self.context_enhancer.enhance_prompt(self.user_id, message, self.session)
+
+            # Create content from enhanced prompt
+            content = types.Content(
+                role="user",
+                parts=[types.Part(text=enhanced_prompt)]
+            )
+
+            # Collect the response text
+            response_text = ""
+
+            # Run the agent
+            async for event in self.runner.run_async(
+                user_id=self.session.user_id,
+                session_id=self.session.id,
+                new_message=content
+            ):
+                if event.content and event.content.parts:
+                    if text := ''.join(part.text or '' for part in event.content.parts):
+                        # Append to the response text
+                        response_text = text
+
+            # Update user interests based on this interaction
+            self.memory_manager.update_user_interests(self.user_id)
+
+            logging.info("Web message processing completed.")
+            return response_text
+        except Exception as e:
+            logging.exception(f"Error during web message processing: {e}")
+            error_message = f"Error: {e}"
+            return error_message
+
 
 def main():
     """Entry point for the application."""
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description="MultiAgentConsole - A terminal-based multi-agent system")
+    parser.add_argument("--web", action="store_true", help="Start the web interface")
+    parser.add_argument("--port", type=int, default=8000, help="Port for the web interface (default: 8000)")
+    parser.add_argument("--host", type=str, default="0.0.0.0", help="Host for the web interface (default: 0.0.0.0)")
+    parser.add_argument("--terminal", action="store_true", help="Start the terminal interface (default if no other interface is specified)")
+    parser.add_argument("--debug", action="store_true", help="Enable debug mode")
+    parser.add_argument("--no-auth", action="store_true", help="Disable authentication for web interface (deprecated, use --mode=single-user instead)")
+    parser.add_argument("--mode", type=str, choices=["multi-user", "single-user"], default="multi-user",
+                      help="Web interface mode: multi-user (with authentication) or single-user (no authentication)")
+    parser.add_argument("--optimize", action="store_true", help="Enable performance optimizations")
+    args = parser.parse_args()
+
+    # Initialize optimization if requested
+    if args.optimize:
+        # The existing setup_optimization function doesn't take an 'enabled' parameter
+        setup_optimization()
+        logging.info("Performance optimizations enabled")
+
+    # Initialize security
+    setup_security(csrf_secret_key=secrets.token_hex(32), rate_limit=100, rate_window=60)
+    logging.info("Security features initialized")
+
+    # Initialize the console app
     app = MultiAgentConsole()
-    app.run()
+
+    # Start the web server if requested
+    if args.web:
+        # Initialize the app components without starting the UI
+        app.on_mount()
+
+        # Determine authentication mode
+        auth_enabled = not args.no_auth
+        if args.mode == "single-user":
+            auth_enabled = False
+
+        # Start the web server
+        web_server = WebServer(
+            console_app=app,
+            host=args.host,
+            port=args.port,
+            debug=args.debug,
+            auth_enabled=auth_enabled
+        )
+        web_server.start()
+
+        logging.info(f"Web interface started at http://{args.host}:{args.port}")
+        print(f"Web interface started at http://{args.host}:{args.port}")
+        print(f"Debug mode: {'enabled' if args.debug else 'disabled'}")
+        print(f"Mode: {args.mode}")
+        print(f"Authentication: {'disabled' if not auth_enabled else 'enabled'}")
+        print(f"Performance optimizations: {'enabled' if args.optimize else 'disabled'}")
+
+        # Keep the main thread running
+        try:
+            while True:
+                import time
+                time.sleep(1)
+        except KeyboardInterrupt:
+            logging.info("Shutting down...")
+            web_server.stop()
+
+    # Start the terminal interface if requested or if no interface is specified
+    elif args.terminal or not (args.web):
+        app.run()
 
 
 if __name__ == "__main__":

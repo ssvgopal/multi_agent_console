@@ -71,6 +71,11 @@ class ThoughtGraphAnalyzer:
 
         # Extract concepts and relationships
         concepts = self._extract_concepts(query)
+
+        # If no concepts were found, add some default ones based on the query
+        if not concepts:
+            concepts = self._generate_default_concepts(query)
+
         relationships = self._extract_relationships(concepts)
 
         # Update the graph
@@ -81,6 +86,9 @@ class ThoughtGraphAnalyzer:
         missing_concepts = self._identify_missing_concepts()
         structural_gaps = self._identify_structural_gaps()
 
+        # Add a summary of the analysis
+        summary = self._generate_analysis_summary(query, concepts, central_concepts)
+
         # Generate suggestions
         suggestions = self._generate_suggestions(central_concepts, missing_concepts, structural_gaps)
 
@@ -90,7 +98,8 @@ class ThoughtGraphAnalyzer:
             "central_concepts": central_concepts,
             "missing_concepts": missing_concepts,
             "structural_gaps": structural_gaps,
-            "suggestions": suggestions
+            "suggestions": suggestions,
+            "summary": summary
         }
 
     def visualize_graph(self, output_path: Optional[str] = None) -> str:
@@ -181,6 +190,74 @@ class ThoughtGraphAnalyzer:
             self.concept_frequency[token] += 1
 
         return tokens
+
+    def _generate_default_concepts(self, text: str) -> List[str]:
+        """Generate default concepts when no concepts are extracted.
+
+        Args:
+            text: Input text
+
+        Returns:
+            List of default concepts
+        """
+        # Split the text into words
+        words = text.lower().split()
+
+        # Remove very short words and common stopwords
+        filtered_words = [word for word in words if len(word) > 2 and word not in self.stop_words]
+
+        # If we still have no words, use some generic concepts
+        if not filtered_words:
+            return ["query", "question", "information", "help", "search"]
+
+        # Use the longest words as they're often more meaningful
+        sorted_words = sorted(filtered_words, key=len, reverse=True)
+
+        # Take up to 5 longest words
+        default_concepts = sorted_words[:5]
+
+        # Add some generic concepts
+        default_concepts.extend(["query", "information"])
+
+        # Count frequency
+        for concept in default_concepts:
+            self.concept_frequency[concept] += 1
+
+        return default_concepts
+
+    def _generate_analysis_summary(self, query: str, concepts: List[str], central_concepts: List[Tuple[str, float]]) -> str:
+        """Generate a summary of the analysis.
+
+        Args:
+            query: The original query
+            concepts: List of extracted concepts
+            central_concepts: List of central concepts with scores
+
+        Returns:
+            Summary text
+        """
+        # Count words in query
+        word_count = len(query.split())
+
+        # Get concept count
+        concept_count = len(concepts)
+
+        # Get central concept names
+        central_concept_names = [concept for concept, _ in central_concepts[:3]] if central_concepts else []
+
+        # Generate summary
+        if concept_count == 0:
+            return "No key concepts were identified in your query. Consider using more specific terminology."
+
+        if word_count < 10:
+            return f"Your query is quite short ({word_count} words) with {concept_count} key concepts identified. Consider adding more details for better analysis."
+
+        if central_concept_names:
+            central_str = ", ".join(central_concept_names)
+            return f"Analysis identified {concept_count} concepts with {central_str} as the most central. The query has good structure with clear relationships between concepts."
+        else:
+            return f"Analysis identified {concept_count} concepts but no clear central themes emerged. Consider restructuring your query to emphasize key points."
+
 
     def _extract_relationships(self, concepts: List[str]) -> List[Tuple[str, str]]:
         """Extract relationships between concepts.

@@ -21,13 +21,39 @@ logger = logging.getLogger(__name__)
 
 # Define test categories
 TEST_CATEGORIES = {
+    # Test types
     'unit': ['tests/test_*.py'],
+    'integration': ['tests/integration/test_*.py'],
+    'all': ['tests/test_*.py', 'tests/integration/test_*.py'],
+
+    # Core features
     'mode_selection': ['tests/test_mode_selection.py'],
-    'security': ['tests/test_web_server.py'],
-    'performance': ['tests/test_monitoring.py'],
+    'web_server': ['tests/test_web_server.py'],
+    'auth': ['tests/test_auth.py'],
+    'cache': ['tests/test_cache.py'],
+
+    # Advanced features
+    'multi_modal': ['tests/test_multi_modal.py'],
+    'workflow': ['tests/test_workflow.py'],
+    'offline': ['tests/test_offline.py'],
+    'debugging': ['tests/test_debugging.py'],
+    'monitoring': ['tests/test_monitoring.py'],
+    'marketplace': ['tests/test_agent_marketplace.py', 'tests/test_marketplace.py'],
+    'cross_platform': ['tests/test_cross_platform.py'],
     'plugins': ['tests/test_plugin.py'],
-    'marketplace': ['tests/test_agent_marketplace.py'],
-    'all': ['tests/test_*.py']
+    'mcp_server': ['tests/test_mcp_server.py'],
+    'a2a': ['tests/test_a2a_adapter.py'],
+    'security': ['tests/test_security_enhancements.py', 'tests/test_security_manager.py'],
+    'ui': ['tests/test_ui_enhancements.py'],
+    'thought_graph': ['tests/test_thought_graph.py'],
+    'memory': ['tests/test_memory_manager.py'],
+    'optimization': ['tests/test_optimization.py'],
+
+    # Feature groups
+    'core': ['tests/test_mode_selection.py', 'tests/test_web_server.py', 'tests/test_auth.py', 'tests/test_cache.py'],
+    'advanced': ['tests/test_multi_modal.py', 'tests/test_workflow.py', 'tests/test_offline.py', 'tests/test_debugging.py'],
+    'security_all': ['tests/test_security_enhancements.py', 'tests/test_security_manager.py', 'tests/test_web_server.py'],
+    'plugins_all': ['tests/test_plugin.py', 'tests/test_mcp_server.py']
 }
 
 def run_unittest(test_path):

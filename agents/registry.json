@@ -1,0 +1,74 @@
+{
+  "agents": [
+    {
+      "agent_id": "research_assistant",
+      "name": "Research Assistant",
+      "description": "An agent that helps with research tasks, including web searches, summarization, and citation management.",
+      "version": "1.0.0",
+      "author": "Sai Sunkara",
+      "tags": ["research", "web", "summarization", "academic"],
+      "requirements": ["requests", "beautifulsoup4", "nltk"],
+      "rating": 4.5,
+      "downloads": 1250,
+      "repository_url": null,
+      "homepage_url": null,
+      "icon_url": null
+    },
+    {
+      "agent_id": "code_assistant",
+      "name": "Code Assistant",
+      "description": "An agent that helps with coding tasks, including code generation, debugging, and optimization.",
+      "version": "1.2.1",
+      "author": "Sai Sunkara",
+      "tags": ["coding", "programming", "debugging", "optimization"],
+      "requirements": ["pylint", "black", "isort"],
+      "rating": 4.8,
+      "downloads": 2340,
+      "repository_url": null,
+      "homepage_url": null,
+      "icon_url": null
+    },
+    {
+      "agent_id": "data_analyst",
+      "name": "Data Analyst",
+      "description": "An agent that helps with data analysis tasks, including data cleaning, visualization, and statistical analysis.",
+      "version": "0.9.5",
+      "author": "Sai Sunkara",
+      "tags": ["data", "analysis", "visualization", "statistics"],
+      "requirements": ["pandas", "matplotlib", "seaborn", "scipy"],
+      "rating": 4.2,
+      "downloads": 980,
+      "repository_url": null,
+      "homepage_url": null,
+      "icon_url": null
+    },
+    {
+      "agent_id": "writing_assistant",
+      "name": "Writing Assistant",
+      "description": "An agent that helps with writing tasks, including grammar checking, style suggestions, and content generation.",
+      "version": "1.1.0",
+      "author": "Sai Sunkara",
+      "tags": ["writing", "grammar", "style", "content"],
+      "requirements": ["language-tool-python", "textstat"],
+      "rating": 4.6,
+      "downloads": 1820,
+      "repository_url": null,
+      "homepage_url": null,
+      "icon_url": null
+    },
+    {
+      "agent_id": "math_tutor",
+      "name": "Math Tutor",
+      "description": "An agent that helps with mathematics, including step-by-step problem solving, concept explanations, and practice problems.",
+      "version": "0.8.2",
+      "author": "Sai Sunkara",
+      "tags": ["math", "education", "tutoring", "problem-solving"],
+      "requirements": ["sympy", "numpy"],
+      "rating": 4.4,
+      "downloads": 1560,
+      "repository_url": null,
+      "homepage_url": null,
+      "icon_url": null
+    }
+  ]
+}

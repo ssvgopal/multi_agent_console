@@ -1,0 +1,74 @@
+{
+  "plugins": [
+    {
+      "plugin_id": "hello_world",
+      "name": "Hello World",
+      "description": "A simple example plugin for MultiAgentConsole",
+      "version": "1.0.0",
+      "author": "Sai Sunkara",
+      "tags": ["example", "demo"],
+      "requirements": [],
+      "rating": 4.5,
+      "downloads": 120,
+      "repository_url": null,
+      "homepage_url": null,
+      "icon_url": null
+    },
+    {
+      "plugin_id": "text_analyzer",
+      "name": "Text Analyzer",
+      "description": "Analyze text for sentiment, entities, and more",
+      "version": "1.2.0",
+      "author": "Sai Sunkara",
+      "tags": ["nlp", "analysis", "text"],
+      "requirements": ["nltk", "textblob"],
+      "rating": 4.8,
+      "downloads": 350,
+      "repository_url": null,
+      "homepage_url": null,
+      "icon_url": null
+    },
+    {
+      "plugin_id": "image_processor",
+      "name": "Image Processor",
+      "description": "Process and analyze images",
+      "version": "0.9.5",
+      "author": "Sai Sunkara",
+      "tags": ["image", "vision", "processing"],
+      "requirements": ["pillow", "opencv-python"],
+      "rating": 4.2,
+      "downloads": 280,
+      "repository_url": null,
+      "homepage_url": null,
+      "icon_url": null
+    },
+    {
+      "plugin_id": "data_visualizer",
+      "name": "Data Visualizer",
+      "description": "Visualize data with interactive charts",
+      "version": "1.1.0",
+      "author": "Sai Sunkara",
+      "tags": ["visualization", "charts", "data"],
+      "requirements": ["matplotlib", "plotly"],
+      "rating": 4.6,
+      "downloads": 420,
+      "repository_url": null,
+      "homepage_url": null,
+      "icon_url": null
+    },
+    {
+      "plugin_id": "file_converter",
+      "name": "File Converter",
+      "description": "Convert files between different formats",
+      "version": "0.8.2",
+      "author": "Sai Sunkara",
+      "tags": ["conversion", "files", "utility"],
+      "requirements": ["pdfkit", "docx2pdf"],
+      "rating": 4.3,
+      "downloads": 190,
+      "repository_url": null,
+      "homepage_url": null,
+      "icon_url": null
+    }
+  ]
+}
